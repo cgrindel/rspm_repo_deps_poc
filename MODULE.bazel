@@ -1,0 +1,3 @@
+module(
+    name = "rspm_repo_deps_poc",
+)
