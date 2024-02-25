@@ -1,4 +1,4 @@
-# Proposal: How to remove Swift index JSON file
+# Proposal: How to Remove Swift Index JSON File
 
 As mentioned in #924, we want to minimize the files that are checked into source control when using
 `rules_swift_package_manager`. The goal is to only require the `Package.swift` and the
@@ -109,3 +109,72 @@ An SPM target will have a Bazel label with the following format:
 - `repo_name`: The name of the `swift_packages` repository.
 - `package_identity`: The Swift package identity/name.
 - `target_name`: The Swift target name.
+
+### Proof of Concept
+
+You can see a POC of the all SPM packages in one Bazel repo at
+https://github.com/cgrindel/rspm_repo_deps_poc/tree/all_pkgs_in_single_repo.
+
+### Gazelle Plugin
+
+We would need to update the Gazelle plugin to read the `spm_products.json` to aid in the resolution
+of Swift modules to Bazel labels.
+
+### Miscellaneous
+
+#### This Pattern Looks Familiar
+
+The predecessor to `rules_swift_package_manager`,
+[rules_spm](https://github.com/cgrindel/rules_spm), used a similar scheme, storing all of the Swift
+packages in a single Bazel repository. However, the implementation details were very different.
+
+#### Support for Declaring Swift Packages in `MODULE.bazel`
+
+You may notice in [the POC](https://github.com/cgrindel/rspm_repo_deps_poc/tree/all_pkgs_in_single_repo)
+a tag class called `swift_package`. I implemented this as quick way to implement the POC. In theory,
+one could forgo specifying `swift_deps.from_package()` and instead specify all of the transitive
+dependencies using a sytnax like the following:
+
+```starlark
+swift_deps.swift_package(
+    commit = "c8ed701b513cf5177118a175d85fbbbcd707ab41",
+    identity = "swift-argument-parser",
+    remote = "https://github.com/apple/swift-argument-parser",
+)
+```
+
+If folks want this, we can add it. However, the plan is not to include it in the first
+implementation.
+
+#### Support SPM Package Dependency API - NOT RECOMMENDED
+
+In theory, we could even support a syntax that mimics [the API surface of SPM package
+dependencies](https://docs.swift.org/package-manager/PackageDescription/PackageDescription.html#package-dependency).
+However, this would require `rules_swift_package_manager` to execute `swift package resolve`
+underneath the covers. This would cause the transitive dependencies to be downloaded twice. Once for
+the resolve action and again for the Bazel repository. Of course, we could try to use the source
+files from the resolve step in the Bazel repository.
+
+I highly recommend that we do not pursue this. It will encourage unreproducible builds as the
+resolution would occur every time the build was run.
+
+## Rejected Alternatives
+
+I did spend some time theorizing and testing the use of mu
+
+### Three Tiers of Bazel Repositories
+
+https://github.com/cgrindel/rspm_repo_deps_poc/tree/separate_download_and_build_repos
+
+I spent some time trying an alternative where each Swift package was downloaded in one Bazel
+repository, indexed in another, and built in a third. This did not work as the labels that feed data
+to the downstream repositories do not resolve.
+
+### Two Tiers of Bazel Repositories
+
+Another scheme that was considered was to create a single Bazel repository to download and index all
+of the Swift packages and then create a separate Bazel repository for each Swift package that would
+contain symlinks to the downloaded code and a `BUILD.bazel` file with the actual build targets.
+
+I could not think of a good reason to add this complexity other than it separates the Swift packages
+into their own Bazel repository...sort of.
