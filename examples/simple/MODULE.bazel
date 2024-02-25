@@ -27,6 +27,7 @@ swift_deps.swift_package(
 )
 use_repo(
     swift_deps,
+    "swiftpkg_index",
     "swiftpkg_swift_argument_parser_download",
     "swiftpkg_swift_log_download",
 )

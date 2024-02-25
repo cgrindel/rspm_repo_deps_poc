@@ -50,11 +50,23 @@ def _swift_package_download_impl(repository_ctx):
     # Generate the WORKSPACE file
     repo_rules.write_workspace_file(repository_ctx, directory)
 
+    # Generate the pkg_info.json
+    pkg_info = struct(
+        repo_name = repository_ctx.name,
+    )
+    repository_ctx.file(
+        "pkg_info.json",
+        content = json.encode_indent(pkg_info, indent = "  "),
+        executable = False,
+    )
+
     # Generate the build file
     # pkg_ctx = pkg_ctxs.read(repository_ctx, directory, env)
     repository_ctx.file(
         "BUILD.bazel",
         content = """
+exports_files(["pkg_info.json"])
+
 filegroup(
     name = "all_srcs",
     srcs = glob(["**"]),
