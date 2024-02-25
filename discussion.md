@@ -1,4 +1,4 @@
-# How to remove Swift index JSON file
+# Proposal: How to remove Swift index JSON file
 
 As mentioned in #924, we want to minimize the files that are checked into source control when using
 `rules_swift_package_manager`. The goal is to only require the `Package.swift` and the
@@ -19,5 +19,93 @@ dependencies. Hence, to resolve a `byName` target dependency, one must know all 
 all of the packages that are direct dependencies of the current package.
 
 This last point is important. We cannot generate a `BUILD.bazel` file for a Swift package without
-having downloaded all of the Swift packages that are directly associated with the Swift package.
-Hence, we need to download all of the transitive dependencies BEFORE the
+having downloaded and processed all of the Swift packages that are directly associated with the
+Swift package. Hence, we need to download all of the Swift package transitive dependencies for an
+`rules_swift_package_manager` project BEFORE generating the Bazel repository/repositories for those
+packages.
+
+## Proposed Solution
+
+_tl;dr Create a single Bazel repository that downloads the SPM packages and exposes their Bazel
+targets._
+
+### Client Usage
+
+A client will add the following to their `MODULE.bazel`.
+
+```starlark
+bazel_dep(
+    name = "rules_swift_package_manager",
+    version = "0.0.0",
+)
+swift_deps = use_extension(
+    "@rules_swift_package_manager//:extensions.bzl",
+    "swift_deps",
+)
+
+# Behind the scenes, this will call `swift_packages` passing along the `Package.swift` and
+# `Package.resolved` labels.
+swift_deps.from_package(
+    resolved = "//:Package.resolved",
+    swift = "//:Package.swift",
+)
+
+# Declare the Bazel repo that will contain all of the Swift packages.
+use_repo(swift_deps, "swiftpkgs")
+```
+
+Alternatively, if they are using the legacy dependency mechanism, they will specify the
+following in their `WORKSPACE` file:
+
+```starlark
+load("@rules_swift_package_manager//swiftpkg:defs.bzl", "swift_packages")
+
+swift_packages(
+    name = "swiftpkgs",
+    package_swift = "//:Package.swift",
+    package_resolved = "//:Package.resolved",
+)
+```
+
+### Implementation
+
+The `swift_packages` repository rule will create a subdirectory for each Swift package (remote and
+local) that is specified in the `Package.swift`. Remote Swift packages will be cloned (git) into
+their directory using the `git_repo` function in
+`@bazel_tools//tools/build_defs/repo:git_worker.bzl`. The local Swift package directories will be
+populated with symlinks to the top-level files and directories of the original code (see the current
+implementation of `local_swift_package` for more details).
+
+For each Swift package, we will generate the dump (`swift package dump-package`) and description
+JSON (`swift package describe --type json`) files. These will be combined into a `pkg_info.json`
+(see `pkginfos.get()` for implementation details).
+
+Next, the `pkg_info.json` files for each Swift package will be combined to create a map of product
+name to a list of fully-qualified package-product references (e.g.
+`{"identity": "...", "product_name": "..."}`. This map will be serialized to a file called
+`spm_products.json` at the root of the `swiftpkgs` repository.
+
+Finally, a `BUILD.bazel` file will be generated for each Swift package using the information from
+its `pkg_info.json` and the `spm_products.json`.
+
+#### Bazel Label Formats
+
+An SPM product will have a Bazel label with the following format:
+
+```
+@<repo_name>//<package_identity>:<product_name>
+```
+
+- `repo_name`: The name of the `swift_packages` repository.
+- `package_identity`: The Swift package identity/name.
+- `product_name`: The Swift product name.
+
+An SPM target will have a Bazel label with the following format:
+
+```
+@<repo_name>//<package_identity>:<target_name>.rspm
+```
+
+- `repo_name`: The name of the `swift_packages` repository.
+- `package_identity`: The Swift package identity/name.
+- `target_name`: The Swift target name.
