@@ -1,0 +1,8 @@
+filegroup(
+    name = "stuff",
+    srcs = [
+        # "@swiftpkgs//swift_argument_parser:all_srcs",
+        # "@swiftpkgs//swift_log:all_srcs",
+        "@swiftpkgs//:packages.json",
+    ],
+)

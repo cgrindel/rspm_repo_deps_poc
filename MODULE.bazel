@@ -1,3 +1,5 @@
 module(
     name = "rspm_repo_deps_poc",
 )
+
+bazel_dep(name = "bazel_skylib", version = "1.5.0")
