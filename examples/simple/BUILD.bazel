@@ -1,0 +1,7 @@
+filegroup(
+    name = "stuff",
+    srcs = [
+        "@swiftpkg_swift_argument_parser_download//:all_srcs",
+        "@swiftpkg_swift_log_download//:all_srcs",
+    ],
+)

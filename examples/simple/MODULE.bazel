@@ -1,0 +1,32 @@
+module(
+    name = "simple",
+)
+
+bazel_dep(
+    name = "rspm_repo_deps_poc",
+    version = "0.0.0",
+)
+local_path_override(
+    module_name = "rspm_repo_deps_poc",
+    path = "../..",
+)
+
+swift_deps = use_extension(
+    "@rspm_repo_deps_poc//rules:extensions.bzl",
+    "swift_deps",
+)
+swift_deps.swift_package(
+    commit = "c8ed701b513cf5177118a175d85fbbbcd707ab41",
+    identity = "swift-argument-parser",
+    remote = "https://github.com/apple/swift-argument-parser",
+)
+swift_deps.swift_package(
+    commit = "e97a6fcb1ab07462881ac165fdbb37f067e205d5",
+    identity = "swift-log",
+    remote = "https://github.com/apple/swift-log",
+)
+use_repo(
+    swift_deps,
+    "swiftpkg_swift_argument_parser_download",
+    "swiftpkg_swift_log_download",
+)
